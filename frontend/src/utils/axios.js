@@ -2,45 +2,49 @@ import axios from "axios";
 import { toast } from "react-toastify";
 
 const API = axios.create({
-  baseURL: "http://localhost:5052/api/v1",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5052/api/v1",
 });
 
-API.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+// Attach JWT token automatically
+API.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
-// Response interceptor for automatic error handling
+// Global response interceptor for error handling + toasts
 API.interceptors.response.use(
   (response) => {
-    // Don't show toast for successful responses automatically
     // Let individual components handle success messages
     return response;
   },
   (error) => {
-    // Handle network errors
+    // Network / CORS / server unreachable
     if (!error.response) {
       toast.error("Network error. Please check your connection.");
       return Promise.reject(error);
     }
 
-    // Handle different error status codes
-    const status = error.response?.status;
-    const message = error.response?.data?.message || "An error occurred";
+    const status = error.response.status;
+    const message =
+      error.response.data?.message || "Something went wrong";
 
     if (status === 401) {
-      toast.error("Unauthorized. Please login again.");
+      toast.error("Session expired. Please login again.");
       localStorage.clear();
       window.location.href = "/login";
     } else if (status === 403) {
-      toast.error("Access forbidden. You don't have permission.");
+      toast.error("Access denied. Admin permission required.");
     } else if (status === 404) {
-      toast.error("Resource not found.");
+      toast.error("Requested resource not found.");
     } else if (status >= 500) {
       toast.error("Server error. Please try again later.");
     } else {
-      // For other errors, show the specific error message
       toast.error(message);
     }
 
